@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/jsdw/vault-inject.svg?branch=master)](https://travis-ci.org/jsdw/vault-inject)
-
 # vault-inject
 
 A utility for injecting secrets from Vault into environment variables, and then running the provided command with access to those environment variables. Instead of having to manually login to vault and fetch the password(s) you need to run some command, you can wrap the command in `vault-inject`, which will prompt you for your vault credentials (LDAP, username-password or a token are supported) and then run the command, providing it the relevant secrets as environment variables of your choosing.
@@ -36,27 +34,9 @@ Most of the environment variables that can be provided to this command are prefi
 
 # Installation
 
-## From pre-built binaries
-
-Prebuilt compressed binaries are available [here](https://github.com/jsdw/vault-inject/releases/latest). Download the compressed `.tar.gz` file for your OS/architecture and decompress it (on MacOS, this is automatic if you double-click the downloaded file).
-
-If you like, you can download and decompress the latest release on the commandline. On **MacOS**, run:
-
-```
-curl -L https://github.com/jsdw/vault-inject/releases/download/v0.1.0/vault-inject-v0.1.0-x86_64-apple-darwin.tar.gz | tar -xz
-```
-
-For **Linux**, run:
-
-```
-curl -L https://github.com/jsdw/vault-inject/releases/download/v0.1.0/vault-inject-v0.1.0-x86_64-unknown-linux-musl.tar.gz | tar -xz
-```
-
-In either case, you'll end up with a `vault-inject` binary in your current folder. The examples assume that you have placed this into your `$PATH` so that it can be called from anywhere.
-
 ## From source
 
-Alternately, you can compile `vault-inject` from source.
+You can compile `vault-inject` from source.
 
 First, go to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install) and install Rust.
 

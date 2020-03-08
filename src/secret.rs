@@ -8,7 +8,8 @@ use crate::utils::make_api_path;
 #[derive(Clone,PartialEq,Debug)]
 pub struct SecretMapping {
     pub secret: Secret,
-    pub env_var: String
+    pub secret_processors: Vec<String>,
+    pub env_var: String,
 }
 
 impl FromStr for SecretMapping {
@@ -17,14 +18,27 @@ impl FromStr for SecretMapping {
         let idx = s.find('=')
             .ok_or_else(|| anyhow!("Expected secrets of the form 'ENV_VAR=path/to/secret/key' but got '{}'", s))?;
 
-        let env_var_str = &s[0..idx];
+        let env_var_str = s[0..idx].trim();
         let secret_str = &s[idx+1..];
+
+        let secret_str_bits = secret_str
+            .split('|')
+            .map(|s| s.trim())
+            .collect::<Vec<_>>();
+
+        let (secret_str, secret_processor_strs) = secret_str_bits
+            .split_first()
+            .ok_or_else(|| anyhow!("Expected secret values of the form 'path/to/secret/key [| command ...]' but got '{}'", secret_str))?;
 
         let secret = Secret::from_str(secret_str)
             .with_context(|| format!("Could not parse '{}' into a valid secret path", secret_str))?;
         let env_var = env_var_str.to_owned();
+        let secret_processors = secret_processor_strs
+            .iter()
+            .map(|&s| s.to_owned())
+            .collect();
 
-        Ok(SecretMapping { secret, env_var })
+        Ok(SecretMapping { secret, env_var, secret_processors })
     }
 }
 

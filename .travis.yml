@@ -95,6 +95,11 @@ after_script: set +e
 before_deploy:
   - sh ci/before_deploy.sh
 
+addons:
+  apt:
+    packages:
+    - libssl-dev
+
 deploy:
   api_key: $GIT_TOKEN
   file_glob: true

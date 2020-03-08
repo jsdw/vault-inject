@@ -33,3 +33,37 @@ psql_dev_db () {
 ```
 
 Most of the environment variables that can be provided to this command are prefixed by `VAULT_INJECT_`, with the exeption of `VAULT_ADDR` which is used to provide the URL to a Vault instance. This is for compatibility with the `vault` CLI tool which uses the same.
+
+# Installation
+
+## From pre-built binaries
+
+Prebuilt compressed binaries are available [here](https://github.com/jsdw/vault-inject/releases/latest). Download the compressed `.tar.gz` file for your OS/architecture and decompress it (on MacOS, this is automatic if you double-click the downloaded file).
+
+If you like, you can download and decompress the latest release on the commandline. On **MacOS**, run:
+
+```
+curl -L https://github.com/jsdw/vault-inject/releases/download/v0.1.0/vault-inject-v0.1.0-x86_64-apple-darwin.tar.gz | tar -xz
+```
+
+For **Linux**, run:
+
+```
+curl -L https://github.com/jsdw/vault-inject/releases/download/v0.1.0/vault-inject-v0.1.0-x86_64-unknown-linux-musl.tar.gz | tar -xz
+```
+
+In either case, you'll end up with a `vault-inject` binary in your current folder. The examples assume that you have placed this into your `$PATH` so that it can be called from anywhere.
+
+## From source
+
+Alternately, you can compile `vault-inject` from source.
+
+First, go to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install) and install Rust.
+
+Then to install a release of `vault-inject` (here, v0.1.0), run the following:
+
+```
+cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.1.0 --force
+```
+
+This installs the latest version of `vault-inject` into a local `.cargo/bin` folder that the rust installation will have prompted you to add to your `$PATH`. The `--force` command overwrites any existing `vault-inject` binary in this folder; you can ditch it if you don't want this behaviour.

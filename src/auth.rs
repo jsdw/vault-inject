@@ -1,9 +1,9 @@
 use anyhow::{ anyhow, Result, Context };
-use reqwest::blocking as req;
 use serde_json::{ Value, json };
-use std::io::{ stderr, stdin, Write };
 use std::str::FromStr;
-use crate::utils::make_api_path;
+use tokio::io::{ self, AsyncWriteExt, AsyncBufReadExt };
+use tokio::task;
+use crate::client::Client;
 
 /// Available authentication methods
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
@@ -32,41 +32,41 @@ impl FromStr for AuthType {
 
 /// The details we need for each auth type in order to get a token
 pub enum AuthDetails {
-    Ldap { vault_url: url::Url, path: String, username: String, password: String },
-    UserPass { vault_url: url::Url, path: String, username: String, password: String },
+    Ldap { path: String, username: String, password: String },
+    UserPass { path: String, username: String, password: String },
     Token { token: String }
 }
 
 /// Authenticate a user given the AuthDetails provided and return a token
-pub fn get_auth_token(opts: AuthDetails) -> Result<String> {
+pub async fn get_auth_token(client: &Client, opts: AuthDetails) -> Result<String> {
     match opts {
-        AuthDetails::Ldap { vault_url, mut path, mut username, mut password } => {
+        AuthDetails::Ldap { mut path, mut username, mut password } => {
             if username.is_empty() {
-                username = prompt_for_input("Please enter Vault LDAP username: ")?;
+                username = prompt_for_input("Please enter Vault LDAP username: ").await?;
             }
             if password.is_empty() {
-                password = prompt_for_hidden_input("Please enter Vault LDAP password: ")?;
+                password = prompt_for_hidden_input("Please enter Vault LDAP password: ").await?;
             }
             if path.is_empty() {
                 path = "/auth/ldap".to_owned();
             }
-            ldap(vault_url, path, username, password)
+            ldap(client, path, username, password).await
         },
-        AuthDetails::UserPass { vault_url, mut path, mut username, mut password } => {
+        AuthDetails::UserPass { mut path, mut username, mut password } => {
             if username.is_empty() {
-                username = prompt_for_input("Please enter Vault username: ")?;
+                username = prompt_for_input("Please enter Vault username: ").await?;
             }
             if password.is_empty() {
-                password = prompt_for_hidden_input("Please enter Vault password: ")?;
+                password = prompt_for_hidden_input("Please enter Vault password: ").await?;
             }
             if path.is_empty() {
                 path = "/auth/userpass".to_owned();
             }
-            userpass(vault_url, path, username, password)
+            userpass(client, path, username, password).await
         },
         AuthDetails::Token { mut token } => {
             if token.is_empty() {
-                token = prompt_for_hidden_input("Please enter Vault token: ")?;
+                token = prompt_for_hidden_input("Please enter Vault token: ").await?;
             }
             Ok(token)
         }
@@ -74,31 +74,35 @@ pub fn get_auth_token(opts: AuthDetails) -> Result<String> {
 }
 
 /// Prompt for input from stdin
-fn prompt_for_input(msg: &str) -> Result<String> {
-    stderr().write_all(msg.as_bytes())
+async fn prompt_for_input(msg: &str) -> Result<String> {
+    io::stderr().write_all(msg.as_bytes())
+        .await
         .with_context(|| format!("Could not write to stdout"))?;
     let mut username = String::new();
-    stdin().read_line(&mut username)
+    io::BufReader::new(io::stdin()).read_line(&mut username)
+        .await
         .with_context(|| format!("Failed to read username from stdin"))?;
     Ok(username)
 }
 
 /// Prompt for password-like input (input is hidden)
-fn prompt_for_hidden_input(msg: &str) -> Result<String> {
-    rpassword::prompt_password_stderr(msg)
-        .with_context(|| format!("Failed to read password from stdin"))
+async fn prompt_for_hidden_input(msg: &str) -> Result<String> {
+    let msg = msg.to_owned();
+    task::spawn_blocking(move || {
+        rpassword::prompt_password_stderr(&msg)
+            .with_context(|| format!("Failed to read password from stdin"))
+    }).await?
 }
 
 /// Get an auth token via LDAP
-fn ldap(vault_url: url::Url, auth_path: String, username: String, password: String) -> Result<String> {
-    let url = make_api_path(vault_url, &auth_path);
-    let client = req::Client::builder().build()
-        .with_context(|| format!("Could not instantiate client to talk to vault API"))?;
-    let res: Value = client.post(url)
+async fn ldap(client: &Client, auth_path: String, username: String, password: String) -> Result<String> {
+    let res: Value = client.post(auth_path)
         .json(&json!({ "username": username, "password": password }))
         .send()
+        .await
         .with_context(|| format!("Could not complete LDAP login request to vault API"))?
         .json()
+        .await
         .with_context(|| format!("Could not deserialize LDAP login response from vault API"))?;
     let token = res["auth"]["client_token"]
         .as_str()
@@ -107,15 +111,14 @@ fn ldap(vault_url: url::Url, auth_path: String, username: String, password: Stri
 }
 
 /// Get an auth token via username-password authentication
-fn userpass(vault_url: url::Url, auth_path: String, username: String, password: String) -> Result<String> {
-    let url = make_api_path(vault_url, &auth_path);
-    let client = req::Client::builder().build()
-        .with_context(|| format!("Could not instantiate client to talk to vault API"))?;
-    let res: Value = client.post(url)
+async fn userpass(client: &Client, auth_path: String, username: String, password: String) -> Result<String> {
+    let res: Value = client.post(auth_path)
         .json(&json!({ "username": username, "password": password }))
         .send()
+        .await
         .with_context(|| format!("Could not complete username-password login request to vault API"))?
         .json()
+        .await
         .with_context(|| format!("Could not deserialize username-password login response from vault API"))?;
     let token = res["auth"]["client_token"]
         .as_str()

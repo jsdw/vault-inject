@@ -1,8 +1,7 @@
 use std::str::FromStr;
 use anyhow::{ anyhow, Result, Context };
-use reqwest::blocking as req;
 use serde_json::Value;
-use crate::utils::make_api_path;
+use crate::client::Client;
 
 /// A mapping from secret to environment variable
 #[derive(Clone,PartialEq,Debug)]
@@ -112,13 +111,10 @@ pub struct Cubbyhole {
 }
 
 /// Acquire a secret:
-pub fn fetch_secret(vault_url: url::Url, token: &str, secret: &Secret) -> Result<String> {
-    let client = req::Client::builder().build()
-        .with_context(|| format!("Could not instantiate client to get secret from Vault API"))?;
-
+pub async fn fetch_secret(client: &Client, secret: &Secret) -> Result<String> {
     match secret {
         Secret::KV1(props) => {
-            let res = request_secret_at_path(client, vault_url, token, "/secret", &props.path, &props.key)?;
+            let res = request_secret_at_path(client, "/secret", &props.path, &props.key).await?;
             let secret = res["data"][&props.key]
                 .as_str()
                 .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in KV1 store", &props.key, &props.path))?
@@ -126,7 +122,7 @@ pub fn fetch_secret(vault_url: url::Url, token: &str, secret: &Secret) -> Result
             Ok(secret)
         },
         Secret::KV2(props) => {
-            let res = request_secret_at_path(client, vault_url, token, "/secret/data", &props.path, &props.key)?;
+            let res = request_secret_at_path(client, "/secret/data", &props.path, &props.key).await?;
             let secret = res["data"]["data"][&props.key]
                 .as_str()
                 .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in KV2 store", &props.key, &props.path))?
@@ -135,7 +131,7 @@ pub fn fetch_secret(vault_url: url::Url, token: &str, secret: &Secret) -> Result
 
         },
         Secret::Cubbyhole(props) => {
-            let res = request_secret_at_path(client, vault_url, token, "/cubbyhole", &props.path, &props.key)?;
+            let res = request_secret_at_path(client, "/cubbyhole", &props.path, &props.key).await?;
             let secret = res["data"][&props.key]
                 .as_str()
                 .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in cubbyhole store", &props.key, &props.path))?
@@ -152,13 +148,13 @@ fn join_paths(path1: &str, path2: &str) -> String {
     )
 }
 
-fn request_secret_at_path(client: req::Client, vault_url: url::Url, token: &str, prefix: &str, path: &str, key: &str) -> Result<Value> {
-    let url = make_api_path(vault_url, &join_paths(prefix, &path));
-    let res: Value = client.get(url)
-        .header("Authorization", &format!("Bearer {}", token))
+async fn request_secret_at_path(client: &Client, prefix: &str, path: &str, key: &str) -> Result<Value> {
+    let res: Value = client.get(join_paths(prefix, path))
         .send()
+        .await
         .with_context(|| format!("Could not request secret '{}' at path '/{}'", &key, &path))?
         .json()
+        .await
         .with_context(|| format!("Could not deserialize secrets at path '/{}' to JSON", &path))?;
     Ok(res)
 }

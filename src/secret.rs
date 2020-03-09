@@ -114,7 +114,7 @@ pub struct Cubbyhole {
 pub async fn fetch_secret(client: &Client, secret: &Secret) -> Result<String> {
     match secret {
         Secret::KV1(props) => {
-            let res = request_secret_at_path(client, "/secret", &props.path, &props.key).await?;
+            let res = request_secret_at_path(client, "/secret", &props.path).await?;
             let secret = res["data"][&props.key]
                 .as_str()
                 .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in KV1 store", &props.key, &props.path))?
@@ -122,7 +122,7 @@ pub async fn fetch_secret(client: &Client, secret: &Secret) -> Result<String> {
             Ok(secret)
         },
         Secret::KV2(props) => {
-            let res = request_secret_at_path(client, "/secret/data", &props.path, &props.key).await?;
+            let res = request_secret_at_path(client, "/secret/data", &props.path).await?;
             let secret = res["data"]["data"][&props.key]
                 .as_str()
                 .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in KV2 store", &props.key, &props.path))?
@@ -131,7 +131,7 @@ pub async fn fetch_secret(client: &Client, secret: &Secret) -> Result<String> {
 
         },
         Secret::Cubbyhole(props) => {
-            let res = request_secret_at_path(client, "/cubbyhole", &props.path, &props.key).await?;
+            let res = request_secret_at_path(client, "/cubbyhole", &props.path).await?;
             let secret = res["data"][&props.key]
                 .as_str()
                 .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in cubbyhole store", &props.key, &props.path))?
@@ -148,12 +148,8 @@ fn join_paths(path1: &str, path2: &str) -> String {
     )
 }
 
-async fn request_secret_at_path(client: &Client, prefix: &str, path: &str, key: &str) -> Result<Value> {
+async fn request_secret_at_path(client: &Client, prefix: &str, path: &str) -> Result<Value> {
     let res: Value = client.get(join_paths(prefix, path))
-        .send()
-        .await
-        .with_context(|| format!("Could not request secret '{}' at path '/{}'", &key, &path))?
-        .json()
         .await
         .with_context(|| format!("Could not deserialize secrets at path '/{}' to JSON", &path))?;
     Ok(res)

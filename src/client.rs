@@ -1,5 +1,7 @@
-use reqwest::{ Method, RequestBuilder };
+use reqwest::{ Method };
+use serde::{ Serialize, de::DeserializeOwned };
 use url::Url;
+use anyhow::Result;
 
 pub struct Client {
     vault_url: Url,
@@ -21,21 +23,25 @@ impl Client {
         self.token = Some(tok);
     }
 
-    pub fn request<P: AsRef<str>>(&self, method: Method, path: P) -> RequestBuilder {
+    async fn request<D: DeserializeOwned, P: AsRef<str>, B: Serialize>(&self, method: Method, path: P, body: Option<B>) -> Result<D> {
         let url = make_api_path(self.vault_url.clone(), path.as_ref());
         let mut builder = self.client.request(method, url);
         if let Some(tok) = &self.token {
             builder = builder.header("Authorization", tok);
         }
-        builder
+        if let Some(body) = &body {
+            builder = builder.json(body);
+        }
+        let res: D = builder.send().await?.json().await?;
+        Ok(res)
     }
 
-    pub fn get<P: AsRef<str>>(&self, path: P) -> RequestBuilder {
-        self.request(Method::GET, path)
+    pub async fn get<D: DeserializeOwned, P: AsRef<str>>(&self, path: P) -> Result<D> {
+        self.request(Method::GET, path, None as Option<()>).await
     }
 
-    pub fn post<P: AsRef<str>>(&self, path: P) -> RequestBuilder {
-        self.request(Method::POST, path)
+    pub async fn post<D: DeserializeOwned, P: AsRef<str>, B: Serialize>(&self, path: P, body: B) -> Result<D> {
+        self.request(Method::POST, path, Some(body)).await
     }
 
 }

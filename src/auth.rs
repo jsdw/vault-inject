@@ -96,14 +96,9 @@ async fn prompt_for_hidden_input(msg: &str) -> Result<String> {
 
 /// Get an auth token via LDAP
 async fn ldap(client: &Client, auth_path: String, username: String, password: String) -> Result<String> {
-    let res: Value = client.post(auth_path)
-        .json(&json!({ "username": username, "password": password }))
-        .send()
+    let res: Value = client.post(auth_path, &json!({ "username": username, "password": password }))
         .await
-        .with_context(|| format!("Could not complete LDAP login request to vault API"))?
-        .json()
-        .await
-        .with_context(|| format!("Could not deserialize LDAP login response from vault API"))?;
+        .with_context(|| format!("Could not complete LDAP login request to vault API"))?;
     let token = res["auth"]["client_token"]
         .as_str()
         .ok_or_else(|| anyhow!("Could not find the client token in the LDAP login response"))?;
@@ -112,12 +107,7 @@ async fn ldap(client: &Client, auth_path: String, username: String, password: St
 
 /// Get an auth token via username-password authentication
 async fn userpass(client: &Client, auth_path: String, username: String, password: String) -> Result<String> {
-    let res: Value = client.post(auth_path)
-        .json(&json!({ "username": username, "password": password }))
-        .send()
-        .await
-        .with_context(|| format!("Could not complete username-password login request to vault API"))?
-        .json()
+    let res: Value = client.post(auth_path, &json!({ "username": username, "password": password }))
         .await
         .with_context(|| format!("Could not deserialize username-password login response from vault API"))?;
     let token = res["auth"]["client_token"]

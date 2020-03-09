@@ -96,7 +96,8 @@ async fn prompt_for_hidden_input(msg: &str) -> Result<String> {
 
 /// Get an auth token via LDAP
 async fn ldap(client: &Client, auth_path: String, username: String, password: String) -> Result<String> {
-    let res: Value = client.post(auth_path, &json!({ "username": username, "password": password }))
+    let auth_path = format!("{}/{}", auth_path.trim_end_matches('/'), username);
+    let res: Value = client.post(auth_path, &json!({ "password": password }))
         .await
         .with_context(|| format!("Could not complete LDAP login request to vault API"))?;
     let token = res["auth"]["client_token"]
@@ -107,7 +108,8 @@ async fn ldap(client: &Client, auth_path: String, username: String, password: St
 
 /// Get an auth token via username-password authentication
 async fn userpass(client: &Client, auth_path: String, username: String, password: String) -> Result<String> {
-    let res: Value = client.post(auth_path, &json!({ "username": username, "password": password }))
+    let auth_path = format!("{}/{}", auth_path.trim_end_matches('/'), username);
+    let res: Value = client.post(auth_path, &json!({ "password": password }))
         .await
         .with_context(|| format!("Could not deserialize username-password login response from vault API"))?;
     let token = res["auth"]["client_token"]

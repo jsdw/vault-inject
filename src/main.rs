@@ -9,6 +9,7 @@ use structopt::StructOpt;
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::prelude::*;
+use futures::stream::{ StreamExt, FuturesUnordered };
 
 #[derive(Debug,Clone,StructOpt)]
 #[structopt(name="vault-inject", about = "Inject vault secrets into commands")]
@@ -63,12 +64,24 @@ async fn main() -> Result<()> {
     let mut cmd = Command::new("sh");
     cmd.arg("-c").arg(&opts.command);
 
+    // Fetch all of our secrets and process env var commands:
+    let mut mappings = FuturesUnordered::new();
     for secret_mapping in &opts.secrets {
-        let secret_value = fetch_secret(&client, &secret_mapping.secret).await?;
-        let secret_value = process_commands(secret_value, &secret_mapping.secret_processors).await?;
-        cmd.env(&secret_mapping.env_var, secret_value);
+        let client = &client;
+        mappings.push(async move {
+            let secret_value = fetch_secret(&client, &secret_mapping.secret).await?;
+            let secret_value = process_commands(secret_value, &secret_mapping.secret_processors).await?;
+            Ok::<_,anyhow::Error>((&secret_mapping.env_var, secret_value))
+        })
     }
 
+    // When the above finishes, we set the env var => value mnappings for the command:
+    while let Some(res) = mappings.next().await {
+        let (env_var, value) = res?;
+        cmd.env(env_var, value);
+    }
+
+    // Run the command we've been given:
     cmd.spawn()
        .with_context(|| format!("Failed to run the command '{}'", &opts.command))?
        .await?;

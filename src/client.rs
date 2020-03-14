@@ -1,8 +1,10 @@
 use reqwest::{ Method };
-use serde::{ Serialize, de::DeserializeOwned };
+use serde::{ Deserialize, Serialize, de::DeserializeOwned };
 use url::Url;
-use anyhow::Result;
+use anyhow::{ anyhow, Result, Context };
+use std::fmt;
 
+#[derive(Clone)]
 pub struct Client {
     vault_url: Url,
     client: reqwest::Client,
@@ -24,15 +26,37 @@ impl Client {
     }
 
     async fn request<D: DeserializeOwned, P: AsRef<str>, B: Serialize>(&self, method: Method, path: P, body: Option<B>) -> Result<D> {
-        let url = make_api_path(self.vault_url.clone(), path.as_ref());
+        let path_str = path.as_ref();
+        let url = make_api_path(self.vault_url.clone(), path_str);
         let mut builder = self.client.request(method, url);
         if let Some(tok) = &self.token {
-            builder = builder.header("Authorization", tok);
+            builder = builder.header("Authorization", format!("Bearer {}", tok));
         }
         if let Some(body) = &body {
             builder = builder.json(body);
         }
-        let res: D = builder.send().await?.json().await?;
+        let res = builder.send()
+            .await
+            .with_context(|| anyhow!("Failed to make request to '{}'", path_str))?;
+
+        if !res.status().is_success() {
+            let reason = res.status().canonical_reason();
+            let status_str = res.status().as_str().to_owned();
+            let errors = res.json().await.unwrap_or(Errors::none());
+            if errors.errors.is_empty() {
+                return Err(match reason {
+                    Some(reason) => anyhow!("{} {} response from Vault", status_str, reason),
+                    None => anyhow!("{} response from Vault", status_str)
+                });
+            } else {
+                return Err(errors.into());
+            }
+        }
+
+        let res: D = res.json()
+            .await
+            .with_context(|| anyhow!("Failed to handle API response from request to '{}'", path_str))?;
+
         Ok(res)
     }
 
@@ -54,4 +78,27 @@ fn make_api_path(mut url: url::Url, path: &str) -> url::Url {
     );
     url.set_path(&path);
     url
+}
+
+/// Vault API errors come back in this format:
+#[derive(Debug,Deserialize)]
+struct Errors {
+    errors: Vec<String>
+}
+
+impl Errors {
+    fn none() -> Errors {
+        Errors { errors: Vec::new() }
+    }
+}
+
+impl std::error::Error for Errors {}
+
+impl fmt::Display for Errors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for err in &self.errors {
+            write!(f, "{}\n", err)?;
+        }
+        Ok(())
+    }
 }

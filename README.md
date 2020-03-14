@@ -10,8 +10,8 @@ echo_foo_bar () {
         --command 'echo $FOO, $BAR' \
         --auth-type token \
         --vault-url http://localhost:8200 \
-        --secret 'FOO = kv2://foo/bar/secret_password' \
-        --secret 'BAR = cubbyhole://wibble/cubby1 | base64 | rev' \
+        --secret 'FOO = /secret/foo/bar/secret_password' \
+        --secret 'BAR = /cubbyhole/wibble/cubby1 | base64 | rev' \
         --token s.MtuPWVqhK0J743iB3ZgKeRmC
 }
 ```
@@ -26,7 +26,7 @@ psql_dev_db () {
         --command 'psql -U postgres -d mydb -h localhost' \
         --auth-type ldap \
         --vault-url http://localhost:8200 \
-        --secret 'PGPASSWORD = kv2://foo/bar/dev_db_password'
+        --secret 'PGPASSWORD = /secret/foo/bar/dev_db_password'
 }
 ```
 
@@ -40,10 +40,10 @@ You can compile `vault-inject` from source.
 
 First, go to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install) and install Rust.
 
-Then to install a release of `vault-inject` (here, v0.1.0), run the following:
+Then to install a release of `vault-inject` (here, v0.2.0), run the following:
 
 ```
-cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.1.0 --force
+cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.2.0 --force
 ```
 
 This installs the latest version of `vault-inject` into a local `.cargo/bin` folder that the rust installation will have prompted you to add to your `$PATH`. The `--force` command overwrites any existing `vault-inject` binary in this folder; you can ditch it if you don't want this behaviour.

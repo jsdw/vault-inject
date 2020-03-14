@@ -2,14 +2,15 @@ mod auth;
 mod secret;
 mod client;
 
-use crate::auth::{ AuthDetails, AuthType, get_auth_token };
-use crate::secret::{ SecretMapping, fetch_secret };
+use crate::auth::{ Auth, AuthDetails, AuthType };
+use crate::secret::{ SecretStore, SecretMapping };
 use anyhow::{ anyhow, Result, Context };
 use structopt::StructOpt;
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::prelude::*;
 use futures::stream::{ StreamExt, FuturesUnordered };
+use colored::*;
 
 #[derive(Debug,Clone,StructOpt)]
 #[structopt(name="vault-inject", about = "Inject vault secrets into commands")]
@@ -38,9 +39,9 @@ struct Opts {
     #[structopt(long="auth-type", default_value="userpass", env="VAULT_INJECT_AUTH_TYPE")]
     auth_type: AuthType,
 
-    /// Where is the chosen authentication type mounted?
-    #[structopt(long="auth-path", default_value="", env="VAULT_INJECT_AUTH_PATH")]
-    auth_path: String,
+    /// If the authentication path is not the default, you'll need to provide it here
+    #[structopt(long="auth-path", env="VAULT_INJECT_AUTH_PATH")]
+    auth_path: Option<String>,
 
     /// Map secrets to environment variables. Call this once for each secret you'd like to inject
     #[structopt(short="s", long="secret")]
@@ -48,7 +49,13 @@ struct Opts {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(e) = run().await {
+        eprintln!("{}", format!("{:?}",e).yellow());
+    }
+}
+
+async fn run() -> Result<()> {
     let opts = Opts::from_args();
     if opts.secrets.is_empty() {
         return Err(anyhow!("One or more secret mappings should be provided using '--secret'"));
@@ -56,10 +63,14 @@ async fn main() -> Result<()> {
 
     let mut client = client::Client::new(opts.vault_url.clone());
 
+    // Authenticate with Vault to get a token:
+    let auth = Auth::new(client.clone());
     let auth_details = to_auth_details(&opts);
-    let auth_token = get_auth_token(&client, auth_details).await?;
+    let auth_token = auth.login(auth_details).await?;
 
+    // Make a new secret store to obtain secrets from:
     client.set_token(auth_token);
+    let store = SecretStore::new(client).await?;
 
     let mut cmd = Command::new("sh");
     cmd.arg("-c").arg(&opts.command);
@@ -67,10 +78,10 @@ async fn main() -> Result<()> {
     // Fetch all of our secrets and process env var commands:
     let mut mappings = FuturesUnordered::new();
     for secret_mapping in &opts.secrets {
-        let client = &client;
+        let store = &store;
         mappings.push(async move {
-            let secret_value = fetch_secret(&client, &secret_mapping.secret).await?;
-            let secret_value = process_commands(secret_value, &secret_mapping.secret_processors).await?;
+            let secret_value = store.get(&secret_mapping.path).await?;
+            let secret_value = process_commands(secret_value, &secret_mapping.processors).await?;
             Ok::<_,anyhow::Error>((&secret_mapping.env_var, secret_value))
         })
     }
@@ -138,3 +149,4 @@ async fn process_commands(mut secret: String, commands: &[String]) -> Result<Str
     }
     Ok(secret)
 }
+

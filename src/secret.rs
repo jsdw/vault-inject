@@ -1,13 +1,140 @@
 use std::str::FromStr;
+use std::collections::HashMap;
 use anyhow::{ anyhow, Result, Context };
 use serde_json::Value;
+use serde::{ Deserialize };
 use crate::client::Client;
+
+pub struct SecretStore {
+    // Client to make requests with:
+    client: Client,
+    // map of mount_point => storage_type for supported secret stores:
+    mount_points: HashMap<StorageType,String>
+}
+
+impl SecretStore {
+
+    /// Create a new SecretStore instance that knows about the
+    /// available secret mount points
+    pub async fn new(client: Client) -> Result<SecretStore> {
+        #[derive(Deserialize)]
+        struct SysMounts {
+            data: HashMap<String,SysMountsData>
+        }
+        #[derive(Deserialize)]
+        struct SysMountsData {
+            r#type: String
+        }
+
+        let sys_auth: SysMounts = client.get("/sys/mounts")
+            .await
+            .with_context(|| anyhow!("Failed to get secret store information from Vault"))?;
+
+        let mount_points = sys_auth.data
+            .into_iter()
+            .filter_map(|(mount,props)| {
+                let ty = StorageType::from_str(&props.r#type).ok()?;
+                let mount = mount.trim_matches('/').to_owned();
+                Some((ty, mount))
+            })
+            .collect();
+
+        Ok(SecretStore { client, mount_points })
+    }
+
+    /// Given some path, obtain the secret pointed to
+    pub async fn get(&self, original_path: &str) -> Result<String> {
+        let original_path = original_path.trim_start_matches('/');
+        let (storage_type_and_path, key) = split_secret_path_and_key(original_path)
+            .ok_or_else(|| anyhow!("The provided path does not appear to be valid (it should not end in '/')"))?;
+        let (storage_type, path) = self.split_path(storage_type_and_path)
+            .ok_or_else(|| anyhow!("The provided path is not supported (no known secret storage is mounted here)"))?;
+
+        match storage_type {
+            StorageType::KV => {
+                let mount_point = self.mount_points
+                    .get(&StorageType::KV)
+                    .ok_or_else(|| anyhow!("Key-Value secret storage is not enabled in Vault"))?;
+
+                let api_path = format!("{mount}/data/{path}"
+                    , mount = mount_point
+                    , path = path );
+
+                let res: Value = self.client.get(&api_path)
+                    .await
+                    .with_context(|| format!("Could not get secrets at path '/{}' from KV2 store", &path))?;
+
+                let secret = res["data"]["data"][&key]
+                    .as_str()
+                    .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in KV2 store", &key, &path))?
+                    .to_owned();
+                Ok(secret)
+            },
+            StorageType::Cubbyhole => {
+                let mount_point = self.mount_points
+                    .get(&StorageType::Cubbyhole)
+                    .ok_or_else(|| anyhow!("Cubbyhole secret storage is not enabled in Vault"))?;
+
+                let api_path = format!("{mount}/{path}"
+                    , mount = mount_point
+                    , path = path );
+
+                let res: Value = self.client.get(&api_path)
+                    .await
+                    .with_context(|| format!("Could not get secrets at path '/{}' from Cubbyhole store", &path))?;
+
+                let secret = res["data"][&key]
+                    .as_str()
+                    .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in Cubbyhole store", &key, &path))?
+                    .to_owned();
+                Ok(secret)
+            },
+        }
+    }
+
+    /// Resolve a path into the storage type used for it and the remaining
+    /// path to the secret. The remaining path has no leading '/'.
+    fn split_path<'a>(&self, path: &'a str) -> Option<(StorageType,&'a str)> {
+        let path = path.trim_start_matches('/');
+        for (&ty,mount_path) in &self.mount_points {
+            if path.starts_with(mount_path) {
+                let path = path[mount_path.len()..].trim_start_matches('/');
+                return Some((ty,path));
+            }
+        }
+        None
+    }
+}
+
+fn split_secret_path_and_key(s: &str) -> Option<(&str, &str)> {
+    let idx = s.rfind('/')?;
+    Some((&s[0..idx], &s[idx+1..]))
+}
+
+
+/// The supported secret storage types
+#[derive(Clone,Copy,Debug,PartialEq,Eq,Hash)]
+pub enum StorageType {
+    KV,
+    Cubbyhole
+}
+
+impl FromStr for StorageType {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "kv" => Ok(StorageType::KV),
+            "cubbyhole" => Ok(StorageType::Cubbyhole),
+            _ => Err(anyhow!("'{}' is not a supported storage type", s))
+        }
+    }
+}
 
 /// A mapping from secret to environment variable
 #[derive(Clone,PartialEq,Debug)]
 pub struct SecretMapping {
-    pub secret: Secret,
-    pub secret_processors: Vec<String>,
+    pub path: String,
+    pub processors: Vec<String>,
     pub env_var: String,
 }
 
@@ -25,138 +152,17 @@ impl FromStr for SecretMapping {
             .map(|s| s.trim())
             .collect::<Vec<_>>();
 
-        let (secret_str, secret_processor_strs) = secret_str_bits
+        let (&path_str, processor_strs) = secret_str_bits
             .split_first()
             .ok_or_else(|| anyhow!("Expected secret values of the form 'path/to/secret/key [| command ...]' but got '{}'", secret_str))?;
 
-        let secret = Secret::from_str(secret_str)
-            .with_context(|| format!("Could not parse '{}' into a valid secret path", secret_str))?;
+        let path = path_str.to_owned();
         let env_var = env_var_str.to_owned();
-        let secret_processors = secret_processor_strs
+        let processors = processor_strs
             .iter()
             .map(|&s| s.to_owned())
             .collect();
 
-        Ok(SecretMapping { secret, env_var, secret_processors })
+        Ok(SecretMapping { path, env_var, processors })
     }
-}
-
-#[derive(Clone,PartialEq,Debug)]
-
-pub enum Secret {
-    KV1(KV1),
-    KV2(KV2),
-    Cubbyhole(Cubbyhole)
-}
-
-impl FromStr for Secret {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Secret> {
-        static KV1_PREFIX: &str = "kv1://";
-        static KV2_PREFIX: &str = "kv2://";
-        static CUBBYHOLE_PREFIX: &str = "cubbyhole://";
-
-        // normalise beginning:
-        let mut s = s.trim_start_matches('/');
-
-        // complain if path ends in '/' (for now; so that we can use it to return all secrets later):
-        if s.ends_with('/') {
-            return Err(anyhow!("Secret paths should not end in '/' but '{}' does", s));
-        }
-
-        // base secret type on path prefix. Assume we are looking for a single key.
-        if s.starts_with(KV2_PREFIX) {
-            s = &s[KV2_PREFIX.len()..];
-            let (path, key) = split_secret_path_and_key(s)?;
-            Ok(Secret::KV2(KV2{
-                path: path.to_owned(),
-                key: key.to_owned()
-            }))
-        } else if s.starts_with(KV1_PREFIX) {
-            s = &s[KV1_PREFIX.len()..];
-            let (path, key) = split_secret_path_and_key(s)?;
-            Ok(Secret::KV1(KV1{
-                path: path.to_owned(),
-                key: key.to_owned()
-            }))
-        } else if s.starts_with(CUBBYHOLE_PREFIX) {
-            s = &s[CUBBYHOLE_PREFIX.len()..];
-            let (path, key) = split_secret_path_and_key(s)?;
-            Ok(Secret::Cubbyhole(Cubbyhole{
-                path: path.to_owned(),
-                key: key.to_owned()
-            }))
-        } else {
-            Err(anyhow!("'{}' does not start with one of '{}', '{}' or '{}", s, KV1_PREFIX, KV2_PREFIX, CUBBYHOLE_PREFIX))
-        }
-    }
-}
-
-#[derive(Clone,PartialEq,Debug)]
-pub struct KV1 {
-    path: String,
-    key: String
-}
-
-#[derive(Clone,PartialEq,Debug)]
-pub struct KV2 {
-    path: String,
-    key: String
-}
-
-#[derive(Clone,PartialEq,Debug)]
-pub struct Cubbyhole {
-    path: String,
-    key: String
-}
-
-/// Acquire a secret:
-pub async fn fetch_secret(client: &Client, secret: &Secret) -> Result<String> {
-    match secret {
-        Secret::KV1(props) => {
-            let res = request_secret_at_path(client, "/secret", &props.path).await?;
-            let secret = res["data"][&props.key]
-                .as_str()
-                .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in KV1 store", &props.key, &props.path))?
-                .to_owned();
-            Ok(secret)
-        },
-        Secret::KV2(props) => {
-            let res = request_secret_at_path(client, "/secret/data", &props.path).await?;
-            let secret = res["data"]["data"][&props.key]
-                .as_str()
-                .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in KV2 store", &props.key, &props.path))?
-                .to_owned();
-            Ok(secret)
-
-        },
-        Secret::Cubbyhole(props) => {
-            let res = request_secret_at_path(client, "/cubbyhole", &props.path).await?;
-            let secret = res["data"][&props.key]
-                .as_str()
-                .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in cubbyhole store", &props.key, &props.path))?
-                .to_owned();
-            Ok(secret)
-        },
-    }
-}
-
-fn join_paths(path1: &str, path2: &str) -> String {
-    format!("{}/{}",
-        path1.trim_end_matches('/'),
-        path2.trim_start_matches('/')
-    )
-}
-
-async fn request_secret_at_path(client: &Client, prefix: &str, path: &str) -> Result<Value> {
-    let res: Value = client.get(join_paths(prefix, path))
-        .await
-        .with_context(|| format!("Could not deserialize secrets at path '/{}' to JSON", &path))?;
-    Ok(res)
-}
-
-fn split_secret_path_and_key(s: &str) -> Result<(&str, &str)> {
-    let idx = s.rfind('/')
-        .ok_or_else(|| anyhow!("Secret path should point to a single secret key, not just a path to a set of keys"))?;
-    Ok((&s[0..idx], &s[idx+1..]))
 }

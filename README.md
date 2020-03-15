@@ -16,7 +16,7 @@ echo_foo_bar () {
 }
 ```
 
-Most of the commands to `vault-inject` can be provided as environment variables to help save repetition incase you are defining lots of similar functions. run `vault-inject --help` for more details about the arguments that you can provide. The only required arguments are `--command` and `--vault-url`; the rest have sensible defaults but can be set to increase automation or work with non-standard Vault setups.
+Most of the commands to `vault-inject` can be provided as environment variables to help save repetition incase you are defining lots of similar functions. run `vault-inject --help` for more details about the arguments that you can provide. The only required arguments are `--command` and `--secret`; the rest have sensible defaults but can be set to increase automation or work with non-standard Vault setups, though you'll often want to set `--vault-url` to point to your specific Vault instance.
 
 Here's another example which will prompt you for your LDAP password, and obtains a secret to login to some PostgresQL DB:
 

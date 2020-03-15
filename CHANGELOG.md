@@ -1,3 +1,9 @@
+# v0.4.0
+
+- Cache tokens by default so that you don't need to re-login
+- Tweak approach to finding secret mount points to need fewer permissions
+- Add CLI flags to disable the cache if necessary
+
 # v0.3.0
 
 - Support multiple of the same type of secret engines being mounted at the same time

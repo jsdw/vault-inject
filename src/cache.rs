@@ -3,22 +3,24 @@ use std::path::{ Path, PathBuf };
 use anyhow::{ anyhow, Result, Context };
 use serde::{ Deserialize, Serialize };
 use tokio::fs;
-use crate::auth::AuthDetails;
 
+#[derive(Debug)]
 pub struct Cache {
-    path: PathBuf,
+    dir: PathBuf,
     data: CacheData
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Debug,Serialize,Deserialize)]
 struct CacheData {
-    last_token: CachedToken
+    last_token: Option<CachedToken>
 }
 
-#[derive(Serialize,Deserialize)]
+#[derive(Debug,Serialize,Deserialize)]
 struct CachedToken {
-    auth_details: AuthDetails
+    token: String
 }
+
+static FILENAME: &str = "cache";
 
 impl Cache {
 
@@ -28,35 +30,45 @@ impl Cache {
     pub async fn load() -> Result<Cache> {
 
         let base_dirs = BaseDirs::new().ok_or_else(||
-            anyhow!("Could not resolve a path to the cached files"))?;
+            anyhow!("Could not resolve a path to the cache"))?;
 
         let mut cache_dir = base_dirs.cache_dir().to_owned();
-        cache_dir.push("vault-inject/cache");
+        cache_dir.push("vault_inject");
 
-        let cache_data = load_data(&cache_dir).await;
+        let cache_data = load_data(cache_dir.clone(), FILENAME).await;
 
         Ok(Cache {
-            path: cache_dir,
+            dir: cache_dir,
             data: cache_data
          })
     }
 
     /// Write the cache data back to disk.
     pub async fn save(&self) -> Result<()> {
-        save_data(&self.path, &self.data).await
+        save_data(self.dir.clone(), FILENAME, &self.data).await
     }
 
-    pub fn get(&self) -> &CacheData {
-        &self.data
+    /// Store a token against some auth details, so it will be reused if
+    /// the auth details are reused.
+    pub fn set_token(&mut self, token: String) {
+        self.data.last_token = Some(CachedToken {
+            token: token
+        })
     }
 
-    pub fn get_mut(&mut self) -> &mut CacheData {
-        &mut self.data
+    /// Get a token back given some auth details if one is cached.
+    pub fn get_token(&self) -> Option<String> {
+        if let Some(cached) = &self.data.last_token {
+            Some(cached.token.to_owned())
+        } else {
+            None
+        }
     }
 
 }
 
-async fn load_data(path: &Path) -> CacheData {
+async fn load_data(mut path: PathBuf, filename: &str) -> CacheData {
+    path.push(filename);
 
     async fn try_load_from_file(path: &Path) -> Result<CacheData> {
         use tokio::io::AsyncReadExt;
@@ -67,15 +79,20 @@ async fn load_data(path: &Path) -> CacheData {
     }
 
     // Try to load the cache from disk:
-    if let Ok(cache_data) = try_load_from_file(path).await {
+    if let Ok(cache_data) = try_load_from_file(&path).await {
         return cache_data;
     }
 
     // Failing that, return a default empty cache:
-    CacheData {}
+    CacheData {
+        last_token: None
+    }
 }
 
-async fn save_data(path: &Path, data: &CacheData) -> Result<()> {
+async fn save_data(mut path: PathBuf, filename: &str, data: &CacheData) -> Result<()> {
+    fs::create_dir_all(&path).await?;
+    path.push(filename);
+
     let mut file = fs::File::create(path)
         .await
         .with_context(|| format!("Failed to update cached data"))?;

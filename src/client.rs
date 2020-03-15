@@ -21,8 +21,12 @@ impl Client {
         }
     }
 
-    pub fn set_token(&mut self, tok: String) {
-        self.token = Some(tok);
+    pub fn with_token(&self, tok: String) -> Client {
+        Client {
+            vault_url: self.vault_url.clone(),
+            client: self.client.clone(),
+            token: Some(tok)
+        }
     }
 
     async fn request<D: DeserializeOwned, P: AsRef<str>, B: Serialize>(&self, method: Method, path: P, body: Option<B>) -> Result<D> {

@@ -1,11 +1,9 @@
 use anyhow::{ anyhow, Result, Context };
 use serde_json::{ Value, json };
-use serde::{ Serialize, Deserialize };
 use std::str::FromStr;
 use tokio::io::{ self, AsyncWriteExt, AsyncBufReadExt };
 use tokio::task;
 use crate::client::Client;
-
 
 pub struct Auth {
     // Client to make requests with:
@@ -18,6 +16,14 @@ impl Auth {
     /// available auth capabilities
     pub fn new(client: Client) -> Auth {
         Auth { client }
+    }
+
+    /// Check the validity of a token
+    pub async fn is_token_valid(&self, token: &str) -> bool {
+        let c = self.client.with_token(token.to_owned());
+        let res: Value = c.get("/auth/token/lookup-self").await.unwrap_or(Value::Null);
+        let ttl = res["data"]["ttl"].as_i64().unwrap_or(0);
+        ttl > 120
     }
 
     /// Authenticate a user given the AuthDetails provided and return a token

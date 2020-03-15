@@ -17,20 +17,21 @@ impl SecretStore {
     /// Create a new SecretStore instance that knows about the
     /// available secret mount points
     pub async fn new(client: Client) -> Result<SecretStore> {
-        #[derive(Deserialize)]
-        struct SysMounts {
-            data: HashMap<String,SysMountsData>
-        }
+        // This API route is "internal", but the Vault CLI tool uses it
+        // to find mount points, and we do too, because /sys/mounts requires
+        // more permissions:
+        let mut sys_auth: Value = client.get("/sys/internal/ui/mounts")
+            .await
+            .with_context(|| format!("Failed to get secret store information from Vault"))?;
+
         #[derive(Deserialize)]
         struct SysMountsData {
             r#type: String
         }
+        let secret_mounts: HashMap<String,SysMountsData> = serde_json::from_value(sys_auth["data"]["secret"].take())
+            .with_context(|| format!("Failed to get secret store information from Vault (unexpected response)"))?;
 
-        let sys_auth: SysMounts = client.get("/sys/mounts")
-            .await
-            .with_context(|| anyhow!("Failed to get secret store information from Vault"))?;
-
-        let mount_points = sys_auth.data
+        let mount_points = secret_mounts
             .into_iter()
             .filter_map(|(mount,props)| {
                 let ty = StorageType::from_str(&props.r#type).ok()?;

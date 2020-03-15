@@ -46,7 +46,19 @@ struct Opts {
 
     /// Map secrets to environment variables. Call this once for each secret you'd like to inject
     #[structopt(short="s", long="secret")]
-    secrets: Vec<SecretMapping>
+    secrets: Vec<SecretMapping>,
+
+    /// Don't read from the cache
+    #[structopt(long="no-cache-read")]
+    no_cache_read: bool,
+
+    /// Don't cache the auth token
+    #[structopt(long="no-cache-write")]
+    no_cache_write: bool,
+
+    /// Don't cache the auth token, or try to load one from the cache
+    #[structopt(long="no-cache")]
+    no_cache: bool
 }
 
 #[tokio::main]
@@ -63,16 +75,36 @@ async fn run() -> Result<()> {
         return Err(anyhow!("One or more secret mappings should be provided using '--secret'"));
     }
 
-    let mut client = client::Client::new(opts.vault_url.clone());
-
-    // Authenticate with Vault to get a token:
+    let mut cache = cache::Cache::load().await?;
+    let client = client::Client::new(opts.vault_url.clone());
     let auth = Auth::new(client.clone());
     let auth_details = to_auth_details(&opts);
-    let auth_token = auth.login(auth_details).await?;
+
+    // Check and return the cached token if we didn't provide a token
+    // and we didn't ask to not use the cache at all:
+    let cached_token = if opts.no_cache || opts.no_cache_read || opts.token.is_some() {
+        None
+    } else if let Some(token) = cache.get_token() {
+        let is_valid = auth.is_token_valid(&token).await;
+        if is_valid { Some(token) } else { None }
+    } else {
+        None
+    };
+
+    // If no cached token, authenticate with Vault to get one:
+    let auth_token = if let Some(token) = cached_token {
+        token
+    } else {
+        let token = auth.login(auth_details.clone()).await?;
+        if !opts.no_cache && !opts.no_cache_write {
+            cache.set_token(token.clone());
+            cache.save().await?;
+        }
+        token
+    };
 
     // Make a new secret store to obtain secrets from:
-    client.set_token(auth_token);
-    let store = SecretStore::new(client).await?;
+    let store = SecretStore::new(client.with_token(auth_token)).await?;
 
     let mut cmd = Command::new("sh");
     cmd.arg("-c").arg(&opts.command);

@@ -32,7 +32,7 @@ struct Opts {
     token: Option<String>,
 
     /// URL of your vault instance (eg https://vault.yourdomain)
-    #[structopt(long="vault-url", env="VAULT_ADDR")]
+    #[structopt(long="vault-url", default_value="http://localhost:8200", env="VAULT_ADDR")]
     vault_url: url::Url,
 
     /// Which type of authentication would you like to use with vault?

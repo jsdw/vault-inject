@@ -1,3 +1,7 @@
+# v0.3.0
+
+- Support multiple of the same type of secret engines being mounted at the same time
+
 # v0.2.0
 
 - Move to async requests to allow fetching multiple secrets in parallel

@@ -8,8 +8,8 @@ use crate::client::Client;
 pub struct SecretStore {
     // Client to make requests with:
     client: Client,
-    // map of mount_point => storage_type for supported secret stores:
-    mount_points: HashMap<StorageType,String>
+    // list of mount points and storage types for each:
+    mount_points: Vec<(StorageType,String)>
 }
 
 impl SecretStore {
@@ -47,45 +47,45 @@ impl SecretStore {
         let original_path = original_path.trim_start_matches('/');
         let (storage_type_and_path, key) = split_secret_path_and_key(original_path)
             .ok_or_else(|| anyhow!("The provided path does not appear to be valid (it should not end in '/')"))?;
-        let (storage_type, path) = self.split_path(storage_type_and_path)
+        let (storage_type, mount_point, path) = self.split_path(storage_type_and_path)
             .ok_or_else(|| anyhow!("The provided path is not supported (no known secret storage is mounted here)"))?;
 
         match storage_type {
             StorageType::KV => {
-                let mount_point = self.mount_points
-                    .get(&StorageType::KV)
-                    .ok_or_else(|| anyhow!("Key-Value secret storage is not enabled in Vault"))?;
-
                 let api_path = format!("{mount}/data/{path}"
                     , mount = mount_point
                     , path = path );
 
                 let res: Value = self.client.get(&api_path)
                     .await
-                    .with_context(|| format!("Could not get secrets at path '/{}' from KV2 store", &path))?;
+                    .with_context(|| format!(
+                        "Could not find any secrets at path '/{}' from KV2 store mounted at '/{}'"
+                        , &path, &mount_point))?;
 
                 let secret = res["data"]["data"][&key]
                     .as_str()
-                    .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in KV2 store", &key, &path))?
+                    .ok_or_else(|| anyhow!(
+                        "Could not find the secret '{}' at path '/{}' in KV2 store mounted at '/{}'"
+                        , &key, &path, &mount_point))?
                     .to_owned();
                 Ok(secret)
             },
             StorageType::Cubbyhole => {
-                let mount_point = self.mount_points
-                    .get(&StorageType::Cubbyhole)
-                    .ok_or_else(|| anyhow!("Cubbyhole secret storage is not enabled in Vault"))?;
-
                 let api_path = format!("{mount}/{path}"
                     , mount = mount_point
                     , path = path );
 
                 let res: Value = self.client.get(&api_path)
                     .await
-                    .with_context(|| format!("Could not get secrets at path '/{}' from Cubbyhole store", &path))?;
+                    .with_context(|| format!(
+                        "Could not find any secrets at path '/{}' from Cubbyhole store mounted at '/{}'"
+                        , &path, &mount_point))?;
 
                 let secret = res["data"][&key]
                     .as_str()
-                    .ok_or_else(|| anyhow!("Could not find the secret '{}' at path '/{}' in Cubbyhole store", &key, &path))?
+                    .ok_or_else(|| anyhow!(
+                        "Could not find the secret '{}' at path '/{}' in Cubbyhole store mounted at '/{}'"
+                        , &key, &path, &mount_point))?
                     .to_owned();
                 Ok(secret)
             },
@@ -94,12 +94,12 @@ impl SecretStore {
 
     /// Resolve a path into the storage type used for it and the remaining
     /// path to the secret. The remaining path has no leading '/'.
-    fn split_path<'a>(&self, path: &'a str) -> Option<(StorageType,&'a str)> {
+    fn split_path<'s,'a>(&'s self, path: &'a str) -> Option<(StorageType,&'s str,&'a str)> {
         let path = path.trim_start_matches('/');
-        for (&ty,mount_path) in &self.mount_points {
+        for (ty,mount_path) in &self.mount_points {
             if path.starts_with(mount_path) {
                 let path = path[mount_path.len()..].trim_start_matches('/');
-                return Some((ty,path));
+                return Some((*ty,&**mount_path,path));
             }
         }
         None

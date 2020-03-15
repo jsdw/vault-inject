@@ -10,6 +10,7 @@ use structopt::StructOpt;
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::prelude::*;
+use tokio::runtime;
 use futures::stream::{ StreamExt, FuturesUnordered };
 use colored::*;
 
@@ -61,14 +62,24 @@ struct Opts {
     no_cache: bool
 }
 
-#[tokio::main]
-async fn main() {
-    if let Err(e) = run().await {
-        eprintln!("{}", format!("{:?}",e).yellow());
+fn main() {
+    if let Err(e) = run() {
+        use std::io::{ self, Write};
+        let _ = io::stderr().write_all(format!("{:?}\n",e).yellow().to_string().as_bytes());
+        std::process::exit(1);
     }
 }
 
-async fn run() -> Result<()> {
+fn run() -> Result<()> {
+    let mut runtime = runtime::Builder::new()
+        .threaded_scheduler()
+        .enable_all()
+        .build()
+        .with_context(|| format!("Unable to start async runtime"))?;
+    runtime.block_on(async { run_async().await })
+}
+
+async fn run_async() -> Result<()> {
     let opts = Opts::from_args();
 
     if opts.secrets.is_empty() {

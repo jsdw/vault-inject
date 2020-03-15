@@ -1,5 +1,6 @@
 use anyhow::{ anyhow, Result, Context };
 use serde_json::{ Value, json };
+use serde::{ Serialize, Deserialize };
 use std::str::FromStr;
 use tokio::io::{ self, AsyncWriteExt, AsyncBufReadExt };
 use tokio::task;
@@ -86,6 +87,7 @@ impl Auth {
 }
 
 /// The details we need for each auth type in order to get a token
+#[derive(PartialEq,Eq,Clone)]
 pub enum AuthDetails {
     Ldap { path: Option<String>, username: String, password: String },
     UserPass { path: Option<String>, username: String, password: String },

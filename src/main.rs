@@ -1,6 +1,7 @@
 mod auth;
 mod secret;
 mod client;
+mod cache;
 
 use crate::auth::{ Auth, AuthDetails, AuthType };
 use crate::secret::{ SecretStore, SecretMapping };
@@ -36,8 +37,8 @@ struct Opts {
     vault_url: url::Url,
 
     /// Which type of authentication would you like to use with vault?
-    #[structopt(long="auth-type", default_value="userpass", env="VAULT_INJECT_AUTH_TYPE")]
-    auth_type: AuthType,
+    #[structopt(long="auth-type", env="VAULT_INJECT_AUTH_TYPE")]
+    auth_type: Option<AuthType>,
 
     /// If the authentication path is not the default, you'll need to provide it here
     #[structopt(long="auth-path", env="VAULT_INJECT_AUTH_PATH")]
@@ -57,6 +58,7 @@ async fn main() {
 
 async fn run() -> Result<()> {
     let opts = Opts::from_args();
+
     if opts.secrets.is_empty() {
         return Err(anyhow!("One or more secret mappings should be provided using '--secret'"));
     }
@@ -101,7 +103,19 @@ async fn run() -> Result<()> {
 }
 
 fn to_auth_details(opts: &Opts) -> AuthDetails {
-    match  opts.auth_type {
+    // If a token is provided, auth-type defaults to token,
+    // else it defaults to username-password:
+    let auth_type = match opts.auth_type {
+        Some(auth_type) => auth_type,
+        None => if opts.token.is_some() {
+            AuthType::Token
+        } else {
+            AuthType::UserPass
+        }
+    };
+
+    // Extract the details we need from opts based on the auth type:
+    match auth_type {
         AuthType::Ldap => AuthDetails::Ldap {
             path:      opts.auth_path.clone(),
             username:  opts.username.clone().unwrap_or(String::new()),

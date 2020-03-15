@@ -46,9 +46,13 @@ impl SecretStore {
     pub async fn get(&self, original_path: &str) -> Result<String> {
         let original_path = original_path.trim_start_matches('/');
         let (storage_type_and_path, key) = split_secret_path_and_key(original_path)
-            .ok_or_else(|| anyhow!("The provided path does not appear to be valid (it should not end in '/')"))?;
+            .ok_or_else(|| anyhow!(
+                "The path '/{}' does not appear to be valid (it should not end in '/')"
+                , original_path))?;
         let (storage_type, mount_point, path) = self.split_path(storage_type_and_path)
-            .ok_or_else(|| anyhow!("The provided path is not supported (no known secret storage is mounted here)"))?;
+            .ok_or_else(|| anyhow!(
+                "The path '/{}' is not supported (no known secret storage is mounted here)"
+                , original_path))?;
 
         match storage_type {
             StorageType::KV => {
@@ -65,7 +69,7 @@ impl SecretStore {
                 let secret = res["data"]["data"][&key]
                     .as_str()
                     .ok_or_else(|| anyhow!(
-                        "Could not find the secret '{}' at path '/{}' in KV2 store mounted at '/{}'"
+                        "Could not find the field '{}' in the secrets '/{}' in KV2 store mounted at '/{}'"
                         , &key, &path, &mount_point))?
                     .to_owned();
                 Ok(secret)
@@ -84,7 +88,7 @@ impl SecretStore {
                 let secret = res["data"][&key]
                     .as_str()
                     .ok_or_else(|| anyhow!(
-                        "Could not find the secret '{}' at path '/{}' in Cubbyhole store mounted at '/{}'"
+                        "Could not find the field '{}' in the secrets '/{}' in Cubbyhole store mounted at '/{}'"
                         , &key, &path, &mount_point))?
                     .to_owned();
                 Ok(secret)

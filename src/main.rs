@@ -126,7 +126,7 @@ async fn run_async() -> Result<()> {
         let store = &store;
         mappings.push(async move {
             let secret_value = store.get(&secret_mapping.path).await?;
-            let secret_value = process_commands(secret_value, &secret_mapping.processors).await?;
+            let secret_value = process_commands(secret_value.into_bytes(), &secret_mapping.processors).await?;
             Ok::<_,anyhow::Error>((&secret_mapping.env_var, secret_value))
         })
     }
@@ -175,7 +175,7 @@ fn to_auth_details(opts: &Opts) -> AuthDetails {
     }
 }
 
-async fn process_commands(mut secret: String, commands: &[String]) -> Result<String> {
+async fn process_commands(mut secret: Vec<u8>, commands: &[String]) -> Result<String> {
     for command in commands {
         let mut child = Command::new("sh")
             .arg("-c")
@@ -189,7 +189,7 @@ async fn process_commands(mut secret: String, commands: &[String]) -> Result<Str
         {
             let stdin = child.stdin.as_mut()
                 .with_context(|| format!("Failed to open stdin for the command '{}'", command))?;
-            stdin.write_all(secret.as_bytes())
+            stdin.write_all(&secret)
                 .await
                 .with_context(|| format!("Failed to write to stdin for the command '{}'", command))?;
         }
@@ -197,13 +197,20 @@ async fn process_commands(mut secret: String, commands: &[String]) -> Result<Str
         let output = child.wait_with_output()
             .await
             .with_context(|| format!("Failed to read stdout for the command '{}'", command))?;
-        secret = String::from_utf8_lossy(&output.stdout).into_owned();
+        secret = output.stdout;
+
+        if secret.ends_with(b"\n") {
+            secret.pop();
+            if secret.ends_with(b"\r") {
+                secret.pop();
+            }
+        }
 
         if secret.is_empty() {
             let error_output = String::from_utf8_lossy(&output.stderr);
             return Err(anyhow!("The command '{}' failed:\n\n'{}'", command, error_output));
         }
     }
-    Ok(secret)
+    Ok(String::from_utf8_lossy(&secret).into_owned())
 }
 

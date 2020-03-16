@@ -1,14 +1,13 @@
 # vault-inject
 
-A utility for injecting secrets from Vault into environment variables, and then running the provided command with access to those environment variables. Instead of having to manually login to vault and fetch the password(s) you need to run some command, you can wrap the command in `vault-inject`, which will prompt you for your vault credentials (LDAP, username-password or a token are supported) and then run the command, providing it the relevant secrets as environment variables of your choosing.
+A utility for injecting secrets from Vault into environment variables, and then running the provided command with access to those environment variables.
 
-Here's how to create a function which just echoes a couple of secrets to stdout from a locally running version of Vault; one from the KV2 store and one from the Cubbyhole store. The latter secret is base64 encoded and reversed (you can pipe secret output through any number of commands) before being provided to the `echo` command:
+This example plucks two secrets out of vault, `FOO` and `BAR`, and prints them both (after base64 encoding and reversing BAR):
 
 ```
 echo_foo_bar () {
     vault-inject \
         --command 'echo $FOO, $BAR' \
-        --auth-type token \
         --vault-url http://localhost:8200 \
         --secret 'FOO = /secret/foo/bar/secret_password' \
         --secret 'BAR = /cubbyhole/wibble/cubby1 | base64 | rev' \
@@ -16,9 +15,7 @@ echo_foo_bar () {
 }
 ```
 
-Most of the commands to `vault-inject` can be provided as environment variables to help save repetition incase you are defining lots of similar functions. run `vault-inject --help` for more details about the arguments that you can provide. The only required arguments are `--command` and `--secret`; the rest have sensible defaults but can be set to increase automation or work with non-standard Vault setups, though you'll often want to set `--vault-url` to point to your specific Vault instance.
-
-Here's another example which will prompt you for your LDAP password, and obtains a secret to login to some PostgresQL DB:
+Here's another example which will prompt you for your LDAP username and password, and obtains a secret to login to some PostgresQL DB:
 
 ```
 psql_dev_db () {
@@ -30,7 +27,25 @@ psql_dev_db () {
 }
 ```
 
-Most of the environment variables that can be provided to this command are prefixed by `VAULT_INJECT_`, with the exeption of `VAULT_ADDR` which is used to provide the URL to a Vault instance. This is for compatibility with the `vault` CLI tool which uses the same.
+You can provide `--username` or the env var `VAULT_INJECT_USERNAME` if you'd like to not have to enter it every time. Most other arguments can also be provided as environment variables, too.
+
+This tool caches the auth tokens it obtained locally, so that you don't need to re-authenticate every time. To disable this feature, the following flags are provided:
+- `--no-cache`: disable all reading and writing from the cache.
+- `--no-cache-read`: disable reading from the cache (the resulting token will be written, still).
+- `--no-cache-write`: disable writing to the cache (but we'll still read a token from it if possible).
+
+You can pipe the result of running this tool to others for further processing. All error output is piped to `stderr`, and the exit code will be non-zero if the secrets cannot be successfully obtained and processed.
+
+Run `vault-inject --help` for more information about the available flags and options.
+
+Supported auth types:
+- **userpass**: Username & Password authentication.
+- **token**: Token absed authentication.
+- **ldap**: LDAP authentication.
+
+Supported secret stores:
+- **KV2**: Key-Value store (version 2).
+- **Cubbyhole**: Cubbyhole store.
 
 # Installation
 
@@ -38,9 +53,9 @@ Most of the environment variables that can be provided to this command are prefi
 
 You can compile `vault-inject` from source.
 
-First, go to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install) and install Rust.
+First, go to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install) and install Rust. If you already have rust installed, run `rustup update` to update to the latest version. You'll want to be using version 1.42 or newer (which you can check using `rustc --version`).
 
-Then to install a release of `vault-inject` (here, v0.4.1), run the following:
+Then to compile and install a release of `vault-inject` (here, v0.4.1), run the following:
 
 ```
 cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.4.1 --force

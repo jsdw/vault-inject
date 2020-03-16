@@ -1,3 +1,7 @@
+# v0.4.1
+
+- Trim the trailing newline added when piping secrets through commands
+
 # v0.4.0
 
 - Cache tokens by default so that you don't need to re-login

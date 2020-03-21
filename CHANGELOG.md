@@ -1,3 +1,8 @@
+# v0.4.3
+
+- Add instructions/config to cross compile to MacOS
+- Lean on rustls over openssl to ease cross-compiling to MacOS
+
 # v0.4.2
 
 - Optimise the compile for size

@@ -51,9 +51,11 @@ Supported secret stores:
 
 ## Using docker
 
-### For a Linux binary
+You can lean on docker images to build a Linux or MacOS binary without installing Rust locally.
 
-A docker one-liner to compile a linux-compatible binary (with the target triplet `x86_64-unknown-linux-gnu`) is as follows:
+### Building a Linux binary
+
+A docker one-liner to compile a Linux binary (with the target triplet `x86_64-unknown-linux-gnu`) is as follows:
 
 ```
 docker run \
@@ -67,18 +69,51 @@ docker run \
 
 The binary is created at `target/releases/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).
 
-Finally, to clean up any cached bits after you've moved the binary, run `rm -rf target`.
+Finally, to clean up any cached bits after you've moved the binary, run:
+
+```
+rm -rf target
+docker image rm rust:1.42.0
+```
+
+### Building a MacOS binary
+
+Using arcane black magic, we can also build a MacOS binary (with the target triplet `x86_64-apple-darwin`) using docker as follows:
+
+```
+# Build an image suitable for cross compiling the mac binary:
+docker build -f build/macos/Dockerfile -t vault-inject:macos build/macos/
+
+# Use this image to build our binary (similar to above):
+docker run \
+    -it \
+    --rm \
+    --user "$(id -u)":"$(id -g)" \
+    -v "$PWD":/code \
+    vault-inject:mac 
+```
+
+The binary is created at `target/x86_64-apple-darwin/release/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).
+
+Finally, to clean up cached bits and pieces, you can run:
+
+```
+rm -rf target
+docker image rm vault-inject:macos
+```
 
 ## From source
 
 You can compile `vault-inject` from source.
 
-First, go to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install) and install Rust. If you already have rust installed, run `rustup update` to update to the latest version. You'll want to be using version 1.42 or newer (which you can check using `rustc --version`).
+First, go to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install) and install Rust. This is a trivial one-liner.
 
-Then to compile and install a release of `vault-inject` (here, v0.4.2), run the following:
+If you already have rust installed, run `rustup update` to update to the latest version. You'll want to be using version 1.42 or newer (which you can check using `rustc --version`).
+
+Then to compile and install a release of `vault-inject` (here, v0.4.3), run the following:
 
 ```
-cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.4.2 --force
+cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.4.3 --force
 ```
 
 This installs the latest version of `vault-inject` into a local `.cargo/bin` folder that the rust installation will have prompted you to add to your `$PATH`. The `--force` command overwrites any existing `vault-inject` binary in this folder; you can ditch it if you don't want this behaviour.

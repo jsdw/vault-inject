@@ -75,10 +75,10 @@ You can compile `vault-inject` from source.
 
 First, go to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install) and install Rust. If you already have rust installed, run `rustup update` to update to the latest version. You'll want to be using version 1.42 or newer (which you can check using `rustc --version`).
 
-Then to compile and install a release of `vault-inject` (here, v0.4.1), run the following:
+Then to compile and install a release of `vault-inject` (here, v0.4.2), run the following:
 
 ```
-cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.4.1 --force
+cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.4.2 --force
 ```
 
 This installs the latest version of `vault-inject` into a local `.cargo/bin` folder that the rust installation will have prompted you to add to your `$PATH`. The `--force` command overwrites any existing `vault-inject` binary in this folder; you can ditch it if you don't want this behaviour.

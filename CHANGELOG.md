@@ -1,3 +1,7 @@
+# v0.4.2
+
+- Optimise the compile for size
+
 # v0.4.1
 
 - Trim the trailing newline added when piping secrets through commands

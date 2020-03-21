@@ -49,6 +49,26 @@ Supported secret stores:
 
 # Installation
 
+## Using docker
+
+### For a Linux binary
+
+A docker one-liner to compile a linux-compatible binary (with the target triplet `x86_64-unknown-linux-gnu`) is as follows:
+
+```
+docker run \
+    -it \
+    --rm \
+    --user "$(id -u)":"$(id -g)" \
+    -v "$PWD":/code \
+    -w /code rust:1.42.0 \
+    cargo build --release
+```
+
+The binary is created at `target/releases/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).
+
+Finally, to clean up any cached bits after you've moved the binary, run `rm -rf target`.
+
 ## From source
 
 You can compile `vault-inject` from source.

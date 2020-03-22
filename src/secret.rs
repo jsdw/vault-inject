@@ -157,11 +157,18 @@ impl FromStr for SecretMapping {
             .map(|s| s.trim())
             .collect::<Vec<_>>();
 
+        for (idx,cmd) in secret_str_bits.iter().enumerate() {
+            if cmd.is_empty() {
+                let n = idx+1;
+                return Err(anyhow!("Every '|' must forward to a command, but command {} of '{}' is missing", n, s))
+            }
+        }
+
         let (&path_str, processor_strs) = secret_str_bits
             .split_first()
             .ok_or_else(|| anyhow!("Expected secret values of the form 'path/to/secret/key [| command ...]' but got '{}'", secret_str))?;
 
-        let path = path_str.to_owned();
+        let path = path_str.trim_start_matches('/').to_owned();
         let env_var = env_var_str.to_owned();
         let processors = processor_strs
             .iter()
@@ -170,4 +177,75 @@ impl FromStr for SecretMapping {
 
         Ok(SecretMapping { path, env_var, processors })
     }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+
+    #[test]
+    fn test_string_to_secretmapping() {
+
+        let cases = vec![
+            // ###############
+            // ### Allowed ###
+            // ###############
+
+            // Basic paths (we strip leading but not trailing '/'):
+            ("FOO = hello", Some(("FOO", "hello", vec![]))),
+            ("FOO = /hello", Some(("FOO", "hello", vec![]))),
+            ("FOO = /hello/", Some(("FOO", "hello/", vec![]))),
+            ("FOO = /hello/foo/bar", Some(("FOO", "hello/foo/bar", vec![]))),
+            ("FOO = /hello/foo/bar/", Some(("FOO", "hello/foo/bar/", vec![]))),
+            ("FOO = /hello/foo/bar/", Some(("FOO", "hello/foo/bar/", vec![]))),
+            // We ignore various whitespace:
+            ("FOO= /hello/foo/bar/ ", Some(("FOO", "hello/foo/bar/", vec![]))),
+            ("FOO=/hello/foo/bar/ ", Some(("FOO", "hello/foo/bar/", vec![]))),
+            (" FOO=/hello/foo/bar/ ", Some(("FOO", "hello/foo/bar/", vec![]))),
+            // We allow secrets to be piped through commands:
+            ("FOO= /hello/foo/bar/ | base64", Some(("FOO", "hello/foo/bar/", vec!["base64"]))),
+            ("FOO= /hello/foo/bar/ | base64 | rev", Some(("FOO", "hello/foo/bar/", vec!["base64", "rev"]))),
+            ("FOO=/hello/foo/bar|base64|rev", Some(("FOO", "hello/foo/bar", vec!["base64", "rev"]))),
+            ("FOO=/hello/foo/bar|base64| rev ", Some(("FOO", "hello/foo/bar", vec!["base64", "rev"]))),
+
+            // ###################
+            // ### NOT Allowed ###
+            // ###################
+
+            // You must have a path:
+            ("FOO", None),
+            // You must use '='
+            ("FOO /hello/lark", None),
+            // You can't have empty commands:
+            ("FOO = /hello/lark |", None),
+            ("FOO = /hello/lark ||", None),
+            ("FOO = /hello/lark ||rev", None),
+        ];
+
+        for (s, res) in cases {
+            match res {
+                Some((env, path, processors)) => {
+                    let processor_strings: Vec<String> = processors
+                        .into_iter()
+                        .map(|s: &str| s.to_owned())
+                        .collect();
+                    let mapping = match SecretMapping::from_str(s) {
+                        Ok(mapping) => mapping,
+                        Err(err) => panic!("String '{}' is not a valid SecretMapping: {:?}", s, err)
+                    };
+                    assert_eq!(env.to_owned(), mapping.env_var, "Environment variable doesn't match expected");
+                    assert_eq!(path.to_owned(), mapping.path, "Path doesn't match expected");
+                    assert_eq!(processor_strings, mapping.processors, "Piped commands don't match expected");
+                },
+                None => {
+                    if let Ok(mapping) = SecretMapping::from_str(s) {
+                        panic!("Did not expect '{}' to be valid, but it was: {:?}", s, mapping);   
+                    }
+                }
+            }
+        }
+
+    }
+
 }

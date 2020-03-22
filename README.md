@@ -34,7 +34,7 @@ This tool caches the auth tokens it obtained locally, so that you don't need to 
 - `--no-cache-read`: disable reading from the cache (the resulting token will be written, still).
 - `--no-cache-write`: disable writing to the cache (but we'll still read a token from it if possible).
 
-You can pipe the result of running this tool to others for further processing. All error output is piped to `stderr`, and the exit code will be non-zero if the secrets cannot be successfully obtained and processed.
+You can pipe the result of running this tool to others for further processing. All informational output is piped to `stderr`, and the exit code will be non-zero if the secrets cannot be successfully obtained and processed.
 
 Run `vault-inject --help` for more information about the available flags and options.
 

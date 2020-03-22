@@ -29,7 +29,7 @@ psql_dev_db () {
 
 You can provide `--username` or the env var `VAULT_INJECT_USERNAME` if you'd like to not have to enter it every time. Most other arguments can also be provided as environment variables, too.
 
-This tool caches the auth tokens it obtained locally, so that you don't need to re-authenticate every time. To disable this feature, the following flags are provided:
+This tool caches the auth tokens it obtains locally, so that you don't need to re-authenticate every time. To disable this feature, the following flags are provided:
 - `--no-cache`: disable all reading and writing from the cache.
 - `--no-cache-read`: disable reading from the cache (the resulting token will be written, still).
 - `--no-cache-write`: disable writing to the cache (but we'll still read a token from it if possible).

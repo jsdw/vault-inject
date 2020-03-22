@@ -105,7 +105,7 @@ docker run \
     --rm \
     --user "$(id -u)":"$(id -g)" \
     -v "$PWD":/code \
-    vault-inject:mac 
+    vault-inject:macos
 ```
 
 The binary is created at `target/x86_64-apple-darwin/release/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).

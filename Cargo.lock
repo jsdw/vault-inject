@@ -1060,7 +1060,7 @@ dependencies = [
 
 [[package]]
 name = "vault-inject"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "colored 1.9.3 (registry+https://github.com/rust-lang/crates.io-index)",

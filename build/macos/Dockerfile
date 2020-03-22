@@ -30,8 +30,12 @@ ENV PATH=/osxcross/target/bin:$PATH
 ENV CC=o64-clang
 ENV CXX=o64-clang++
 
+# Assume the dockerfile is run from its own folder. Copy across the cargo
+# config we'll need for the MacOS build:
+RUN mkdir /.cargo
+COPY cargo_config /.cargo/config
+
 # Assume code is mounted at /code and build a macos target:
 RUN mkdir /code
 WORKDIR /code
-ENTRYPOINT ["cargo", "build", "--target", "x86_64-apple-darwin"]
-CMD ["--release"]
+CMD ["cargo", "build", "--target", "x86_64-apple-darwin", "--release"]

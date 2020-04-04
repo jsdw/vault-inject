@@ -5,20 +5,30 @@ A utility for injecting secrets from Vault into environment variables, and then 
 This example plucks two secrets out of vault, `FOO` and `BAR`, and prints them both (after base64 encoding and reversing BAR):
 
 ```
-echo_foo_bar () {
-    vault-inject \
-        --command 'echo $FOO, $BAR' \
-        --vault-url http://localhost:8200 \
-        --secret 'FOO = /secret/foo/bar/secret_password' \
-        --secret 'BAR = /cubbyhole/wibble/cubby1 | base64 | rev' \
-        --token s.MtuPWVqhK0J743iB3ZgKeRmC
-}
+vault-inject \
+    --command 'echo $FOO, $BAR' \
+    --vault-url http://localhost:8200 \
+    --secret 'FOO = /secret/foo/bar/secret_password' \
+    --secret 'BAR = /cubbyhole/wibble/cubby1 | base64 | rev' \
+    --token s.MtuPWVqhK0J743iB3ZgKeRmC
 ```
 
 Here's another example which will prompt you for your LDAP username and password, and obtains a secret to login to some PostgresQL DB:
 
 ```
-psql_dev_db () {
+vault-inject \
+    --command 'psql -U postgres -d mydb -h localhost' \
+    --auth-type ldap \
+    --vault-url http://localhost:8200 \
+    --secret 'PGPASSWORD = /secret/foo/bar/dev_db_password'
+```
+
+You can provide `--username` or the env var `VAULT_INJECT_USERNAME` if you'd like to not have to enter it every time. Most other arguments can also be provided as environment variables, too.
+
+The primary use case of this tool is to create bash functions or aliases, so that you have fast access to commands that would otherwise require secrets to be manually provided each time. For example, one might add the following snippet to their `~/.bash_profile`. They could then type `dev_db` in order to access a database, injecting secrets as necessary and prompting for vault login credentials if necessary (they will, by default, be cached):
+
+```
+dev_db() {
     vault-inject \
         --command 'psql -U postgres -d mydb -h localhost' \
         --auth-type ldap \
@@ -26,8 +36,6 @@ psql_dev_db () {
         --secret 'PGPASSWORD = /secret/foo/bar/dev_db_password'
 }
 ```
-
-You can provide `--username` or the env var `VAULT_INJECT_USERNAME` if you'd like to not have to enter it every time. Most other arguments can also be provided as environment variables, too.
 
 This tool caches the auth tokens it obtains locally, so that you don't need to re-authenticate every time. To disable this feature, the following flags are provided:
 - `--no-cache`: disable all reading and writing from the cache.

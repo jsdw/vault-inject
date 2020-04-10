@@ -1,3 +1,8 @@
+# v0.5.0
+
+- Allow template `{params}` in environment variable names and key names (at the end of paths) when getting secrets, so that you can capture and assign multiple environment variables at once using basic pattern matching.
+- Add `each` CLI option which runs a command for each secret obtained (relevant details exposed in the command you provide as `$secret_key` and `$secret_value`). Any `each` command provided runs before the `command`. This makes it easy to do things like echoing out all secrets for exporting.
+
 # v0.4.3
 
 - Add instructions/config to cross compile to MacOS

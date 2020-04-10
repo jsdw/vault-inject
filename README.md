@@ -2,6 +2,8 @@
 
 A utility for injecting secrets from Vault into environment variables, and then running the provided command with access to those environment variables.
 
+## Examples
+
 This example plucks two secrets out of vault, `FOO` and `BAR`, and prints them both (after base64 encoding and reversing BAR):
 
 ```
@@ -36,6 +38,36 @@ dev_db() {
         --secret 'PGPASSWORD = /secret/foo/bar/dev_db_password'
 }
 ```
+
+To capture multiple secrets from a single path, you can use `{name}` style template parameters in environment variable names and secret names at the end of the path. You can also use the `--each` CLI paramater to perform a command against each secret we capture. This example captures all secrets from the path `/foo/bar` and echoes them out:
+
+```
+vault-inject \
+    --secret '{secret} = /secret/foo/bar/{secret}'
+    --each 'echo $secret_key=$secret_value'
+```
+
+Within `--each`, `$secret_key` is each environment variable name assigned in the `--secret` command. `$secret_value` is is corresponding value (also available as `$secret`).
+
+One use case for this is exporting secrets as environment variables within the current process. Sub-processes can't alter the parent environment variables easily, but we can return the values we want and `eval` them into the environment by putting something like the following into your `.bash_profile` and then running `set_env_vars`:
+
+```
+set_env_vars() {
+    eval $(vault-inject \
+        --secret '{secret} = /secret/foo/bar/{secret}'
+        --each 'echo "export $secret_key=$secret_value"')
+}
+```
+
+Template parameters are pretty flexible. Another use-case of them is to only capture secrets whose keys match certain patterns. The following example finds all secrets matching `foo_{a}_{b}` (eg `foo_bar_wibble` or `foo_1_2` but not `other_bar_wibble`) and puts them in environment variables which recombine whatever matches `{a}` and `{b}` into a new name:
+
+```
+vault-inject \
+    --secret 'SECRET_{b}_{a} = /secret/foo/bar/foo_{a}_{b}'
+    --each 'echo $secret_key=$secret_value'
+```
+
+## Other details
 
 This tool caches the auth tokens it obtains locally, so that you don't need to re-authenticate every time. To disable this feature, the following flags are provided:
 - `--no-cache`: disable all reading and writing from the cache.

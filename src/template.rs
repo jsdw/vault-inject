@@ -174,6 +174,8 @@ mod test {
             ("foo_{ bar }", vec![("bar","wibble")], "foo_wibble"),
             ("{a}", vec![("a","b")], "b"),
             ("a", vec![("a","b")], "a"),
+            ("{a},{b},{c}", vec![("a","A"),("b","B"),("c","C")], "A,B,C"),
+            ("{a},{b},{c}", vec![("a","A"),("b","B")], "A,B,"),
         ];
 
         for (tmpl_str, subs, expected) in cases {
@@ -198,6 +200,9 @@ mod test {
             ("{ anything }", "a", true),
             // A capture can't match nothing at all:
             ("{ anything }", "", false),
+            // Multiple captures are non-greedily handled:
+            ("{a}_{b}_c_{d}", "A_A_A_b_b_b_c_dDdDdD", true),
+            ("{a}_{b}_c_{d}", "A_A_A_b_b_b_z_dDdDdD", false),
         ];
 
         for (tmpl_str, match_str, does_match) in cases {

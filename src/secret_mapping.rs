@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use anyhow::{ anyhow, Result, Context };
+use anyhow::{ anyhow, Result };
 use crate::template::Template;
 
 /// A mapping from secret to environment variable
@@ -56,15 +56,14 @@ impl FromStr for SecretMapping {
         let (path_str, key_str) = split_secret_path_and_key(path_and_key_str)
             .ok_or_else(|| anyhow!("Expected the secret path to have at least one '/' in it but got '{}'", path_and_key_str))?;
 
-
         let path = path_str.trim_start_matches('/').to_owned();
 
         let key = Template::new(key_str)
-            .with_context(|| "Invalid key template")?;
+            .map_err(|e| anyhow!("Invalid key template '{}': {}", key_str, e))?;
         let env_var = Template::new(env_var_str)
-            .with_context(|| "Invalid environment variable template")?;
+            .map_err(|e| anyhow!("Invalid environment variable template '{}': {}", env_var_str, e))?;
         if !env_var.can_stringify_from(&key) {
-            return Err(anyhow!("The environment variable pattern '{}' contains parameters not seen in the key '{}'", env_var_str, key_str));
+            return Err(anyhow!("The environment variable pattern '{}' contains template parameters not seen in the corresponding key '{}'", env_var_str, key_str));
         }
 
         let processors = processor_strs

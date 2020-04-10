@@ -22,7 +22,7 @@ use colored::*;
 struct Opts {
     /// The command you'd like to run, having secrets exposed to it via environment variables
     #[structopt(long="command", short="c")]
-    command: String,
+    command: Option<String>,
 
     /// Run this command against each secret we obtain (which is exposed as the env var $secret)
     #[structopt(long="each")]
@@ -92,6 +92,9 @@ async fn run_async() -> Result<()> {
     if opts.secrets.is_empty() {
         return Err(anyhow!("One or more secret mappings should be provided using '--secret'"));
     }
+    if opts.command.is_none() && opts.each.is_empty() {
+        return Err(anyhow!("One of '--command' or '--each' should be provided"))
+    }
 
     let mut cache = cache::Cache::load().await?;
     let client = client::Client::new(opts.vault_url.clone());
@@ -124,9 +127,6 @@ async fn run_async() -> Result<()> {
     // Make a new secret store to obtain secrets from:
     let store = SecretStore::new(client.with_token(auth_token)).await?;
 
-    let mut cmd = Command::new("sh");
-    cmd.arg("-c").arg(&opts.command);
-
     // Fetch all of our secrets and process env var commands:
     let mut mappings = FuturesUnordered::new();
     for secret_mapping in &opts.secrets {
@@ -144,12 +144,23 @@ async fn run_async() -> Result<()> {
         })
     }
 
+    // Define a main command to run if one was provided:
+    let mut cmd = if let Some(c) = &opts.command {
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c").arg(c);
+        Some(cmd)
+    } else {
+        None
+    };
+
     // When the above finishes, we set the env var => value mappings for the command.
     // If 'each' command(s) are given, we also run these against each variable, one after
     // the other:
     while let Some(res) = mappings.next().await {
         for (key, val) in res? {
-            cmd.env(&key, &val);
+            if let Some(cmd) = &mut cmd {
+                cmd.env(&key, &val);
+            }
             for each_cmd_str in &opts.each {
                 Command::new("sh")
                     .arg("-c")
@@ -164,10 +175,15 @@ async fn run_async() -> Result<()> {
         }
     }
 
-    // Run the main command we've been given:
-    cmd.spawn()
-       .with_context(|| format!("Failed to run the command '{}'", &opts.command))?
-       .await?;
+    // Run the main command we've been given, if it was actually provided:
+    if let Some(mut cmd) = cmd {
+        cmd.spawn()
+           .with_context(|| {
+               let cmd_str = opts.command.as_ref().map(|s| &**s).unwrap_or("");
+               format!("Failed to run the command '{}'", cmd_str)
+           })?
+           .await?;
+    }
 
     Ok(())
 }

@@ -96,8 +96,8 @@ This is probably the simplest way to produce a binary for your current OS. Run t
 ```
 # Install Rust (You'll need v1.42 or later):
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-# Compile and install vault-inject (here, v0.4.3):
-cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.4.3 --force
+# Compile and install vault-inject (here, v0.5.0):
+cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.5.0 --force
 ```
 
 This installs the latest version of `vault-inject` into a local `.cargo/bin` folder that the rust installation will have prompted you to add to your `$PATH`. The `--force` command overwrites any existing `vault-inject` binary in this folder; you can ditch it if you don't want this behaviour.

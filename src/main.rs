@@ -1,10 +1,13 @@
 mod auth;
-mod secret;
+mod secret_store;
+mod secret_mapping;
+mod template;
 mod client;
 mod cache;
 
 use crate::auth::{ Auth, AuthDetails, AuthType };
-use crate::secret::{ SecretStore, SecretMapping };
+use crate::secret_store::SecretStore;
+use crate::secret_mapping::SecretMapping;
 use anyhow::{ anyhow, Result, Context };
 use structopt::StructOpt;
 use std::process::Stdio;
@@ -20,6 +23,10 @@ struct Opts {
     /// The command you'd like to run, having secrets exposed to it via environment variables
     #[structopt(long="command", short="c")]
     command: String,
+
+    /// Run this command against each secret we obtain (which is exposed as the env var $secret)
+    #[structopt(long="each")]
+    each: Vec<String>,
 
     /// Username to login with (for the 'ldap'/'userpass' auth-type)
     #[structopt(long="username", env="VAULT_INJECT_USERNAME")]
@@ -125,19 +132,39 @@ async fn run_async() -> Result<()> {
     for secret_mapping in &opts.secrets {
         let store = &store;
         mappings.push(async move {
-            let secret_value = store.get(&secret_mapping.path).await?;
-            let secret_value = process_commands(secret_value.into_bytes(), &secret_mapping.processors).await?;
-            Ok::<_,anyhow::Error>((&secret_mapping.env_var, secret_value))
+            let secret_values = store.get(secret_mapping.path()).await?;
+            let mut out_values = Vec::new();
+            for (key,val) in secret_values {
+                if let Some(env_var) = secret_mapping.env_var_from_key(&key) {
+                    let secret_value = process_commands(val.into_bytes(), secret_mapping.processors()).await?;
+                    out_values.push((env_var, secret_value));
+                }
+            }
+            Ok::<_,anyhow::Error>(out_values)
         })
     }
 
-    // When the above finishes, we set the env var => value mnappings for the command:
+    // When the above finishes, we set the env var => value mappings for the command.
+    // If 'each' command(s) are given, we also run these against each variable, one after
+    // the other:
     while let Some(res) = mappings.next().await {
-        let (env_var, value) = res?;
-        cmd.env(env_var, value);
+        for (key, val) in res? {
+            cmd.env(&key, &val);
+            for each_cmd_str in &opts.each {
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(each_cmd_str)
+                    .env("secret", &val)
+                    .env("secret_key", &key)
+                    .env("secret_value", &val)
+                    .spawn()
+                    .with_context(|| format!("Failed to run the 'each' command '{}'", &each_cmd_str))?
+                    .await?;
+            }
+        }
     }
 
-    // Run the command we've been given:
+    // Run the main command we've been given:
     cmd.spawn()
        .with_context(|| format!("Failed to run the command '{}'", &opts.command))?
        .await?;

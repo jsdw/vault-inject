@@ -120,7 +120,7 @@ cargo install --git https://github.com/jsdw/vault-inject.git --tag v0.5.0 --forc
 
 This installs the latest version of `vault-inject` into a local `.cargo/bin` folder that the rust installation will have prompted you to add to your `$PATH`. The `--force` command overwrites any existing `vault-inject` binary in this folder; you can ditch it if you don't want this behaviour.
 
-## Using docker
+## From source via docker
 
 You can lean on docker images to build a Linux or MacOS binary without installing Rust locally.
 
@@ -130,7 +130,7 @@ For convenience, commands have been packaged into a small `docker-build.sh` scri
 
 ### Building a Linux binary
 
-A docker one-liner to compile a Linux binary (with the target triplet `x86_64-unknown-linux-gnu`) is as follows:
+Run the following:
 
 ```
 docker-build.sh linux
@@ -138,35 +138,12 @@ docker-build.sh linux
 
 The binary is created at `target/x86_64-unknown-linux-gnu/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).
 
-Finally, to clean up any cached bits after you've moved the binary, run:
-
-```
-rm -rf target
-docker image rm rust:1.42.0
-```
-
 ### Building a MacOS binary
 
-Using arcane black magic, we can also build a MacOS binary (with the target triplet `x86_64-apple-darwin`) using docker as follows:
+Using arcane black magic, we can also build a MacOS binary (with the target triplet `x86_64-apple-darwin`). To do so, run the following:
 
 ```
-# Build an image suitable for cross compiling the mac binary:
-docker build -f build/macos/Dockerfile -t vault-inject:macos build/macos/
-
-# Use this image to build our binary (similar to above):
-docker run \
-    -it \
-    --rm \
-    --user "$(id -u)":"$(id -g)" \
-    -v "$PWD":/code \
-    vault-inject:macos
+docker-build.sh mac
 ```
 
 The binary is created at `target/x86_64-apple-darwin/release/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).
-
-Finally, to clean up cached bits and pieces, you can run:
-
-```
-rm -rf target
-docker image rm vault-inject:macos
-```

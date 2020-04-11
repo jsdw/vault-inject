@@ -119,10 +119,10 @@ docker run \
     --user "$(id -u)":"$(id -g)" \
     -v "$PWD":/code \
     -w /code rust:1.42.0 \
-    cargo build --release
+    cargo build --release --target x86_64-unknown-linux-gnu
 ```
 
-The binary is created at `target/releases/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).
+The binary is created at `target/x86_64-unknown-linux-gnu/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).
 
 Finally, to clean up any cached bits after you've moved the binary, run:
 

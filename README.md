@@ -89,9 +89,27 @@ Supported secret stores:
 
 # Installation
 
+## From pre-built binaries
+
+Prebuilt compressed binaries are available [here](https://github.com/jsdw/vault-inject/releases/latest). Download the compressed `.tar.gz` file for your OS/architecture and decompress it (on MacOS, this is automatic if you double-click the downloaded file).
+
+If you like, you can download and decompress the latest release on the commandline. On **MacOS**, run:
+
+```
+curl -L https://github.com/jsdw/vault-inject/releases/download/v0.5.0/vault-inject-v0.5.0-x86_64-apple-darwin.tar.gz | tar -xz
+```
+
+For **Linux**, run:
+
+```
+curl -L https://github.com/jsdw/vault-inject/releases/download/v0.5.0/vault-inject-v0.5.0-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+```
+
+In either case, you'll end up with a `vault-inject` binary in your current folder. The examples assume that you have placed this into your `$PATH` so that it can be called from anywhere.
+
 ## From source
 
-This is probably the simplest way to produce a binary for your current OS. Run the following:
+This is probably the simplest way to build a binary for your current OS. Run the following:
 
 ```
 # Install Rust (You'll need v1.42 or later):
@@ -108,18 +126,14 @@ You can lean on docker images to build a Linux or MacOS binary without installin
 
 You'll need to clone this repo locally to run these commands. All commands assume that this folder is the current working directory.
 
+For convenience, commands have been packaged into a small `docker-build.sh` script.
+
 ### Building a Linux binary
 
 A docker one-liner to compile a Linux binary (with the target triplet `x86_64-unknown-linux-gnu`) is as follows:
 
 ```
-docker run \
-    -it \
-    --rm \
-    --user "$(id -u)":"$(id -g)" \
-    -v "$PWD":/code \
-    -w /code rust:1.42.0 \
-    cargo build --release --target x86_64-unknown-linux-gnu
+docker-build.sh linux
 ```
 
 The binary is created at `target/x86_64-unknown-linux-gnu/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).

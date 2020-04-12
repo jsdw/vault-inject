@@ -93,21 +93,27 @@ Supported secret stores:
 
 Prebuilt compressed binaries are available [here](https://github.com/jsdw/vault-inject/releases/latest). Download the compressed `.tar.gz` file for your OS/architecture and decompress it (on MacOS, this is automatic if you double-click the downloaded file).
 
-If you like, you can download and decompress the latest release on the commandline. On **MacOS**, run:
+If you like, you can download and decompress the latest release on the commandline:
+
+### Installing a MacOS binary
+
+Run:
 
 ```
 curl -L https://github.com/jsdw/vault-inject/releases/download/v0.5.0/vault-inject-v0.5.0-x86_64-apple-darwin.tar.gz | tar -xz
 ```
 
-For **Linux**, you can use a binary which is dynamically linked against the GNU libc, or a fully static binary using the musl libc implementation. If you don't know which one to use, either is probably fine.
+### Installing a Linux binary
 
-For the fully static musl binary:
+For Linux, you can use a binary which is dynamically linked against the GNU libc, or a fully static binary using the musl libc implementation. If you don't know which one to use, either is probably fine.
+
+For the fully static musl binary, run:
 
 ```
 curl -L https://github.com/jsdw/vault-inject/releases/download/v0.5.0/vault-inject-v0.5.0-x86_64-unknown-linux-musl.tar.gz | tar -xz
 ```
 
-For the GNU binary:
+For the GNU binary, run:
 
 ```
 curl -L https://github.com/jsdw/vault-inject/releases/download/v0.5.0/vault-inject-v0.5.0-x86_64-unknown-linux-gnu.tar.gz | tar -xz

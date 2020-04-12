@@ -146,13 +146,14 @@ For convenience, commands have been packaged into a small `docker-build.sh` scri
 
 ### Building a Linux binary
 
-Run the following:
+Run one of the following (for either a GNU or musl binary):
 
 ```
-docker-build.sh linux
+docker-build.sh linux-gnu
+docker-build.sh linux-musl
 ```
 
-The binary is created at `target/x86_64-unknown-linux-gnu/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).
+The binary is created at `target/x86_64-unknown-linux-{gnu|musl}/vault-inject`. Put that binary wherever you'd like (eg. into a `$PATH` such as `/usr/bin`).
 
 ### Building a MacOS binary
 

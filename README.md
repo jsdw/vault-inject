@@ -103,6 +103,8 @@ Run:
 curl -L https://github.com/jsdw/vault-inject/releases/download/v0.5.0/vault-inject-v0.5.0-x86_64-apple-darwin.tar.gz | tar -xz
 ```
 
+You'll end up with a `vault-inject` binary in your current folder. The examples assume that you have placed this into your `$PATH` so that it can be called from anywhere.
+
 ### Installing a Linux binary
 
 For Linux, you can use a binary which is dynamically linked against the GNU libc, or a fully static binary using the musl libc implementation. If you don't know which one to use, either is probably fine.

@@ -99,13 +99,21 @@ If you like, you can download and decompress the latest release on the commandli
 curl -L https://github.com/jsdw/vault-inject/releases/download/v0.5.0/vault-inject-v0.5.0-x86_64-apple-darwin.tar.gz | tar -xz
 ```
 
-For **Linux**, run:
+For **Linux**, you can use a binary which is dynamically linked against the GNU libc, or a fully static binary using the musl libc implementation. If you don't know which one to use, either is probably fine.
+
+For the fully static musl binary:
+
+```
+curl -L https://github.com/jsdw/vault-inject/releases/download/v0.5.0/vault-inject-v0.5.0-x86_64-unknown-linux-musl.tar.gz | tar -xz
+```
+
+For the GNU binary:
 
 ```
 curl -L https://github.com/jsdw/vault-inject/releases/download/v0.5.0/vault-inject-v0.5.0-x86_64-unknown-linux-gnu.tar.gz | tar -xz
 ```
 
-In either case, you'll end up with a `vault-inject` binary in your current folder. The examples assume that you have placed this into your `$PATH` so that it can be called from anywhere.
+In any case, you'll end up with a `vault-inject` binary in your current folder. The examples assume that you have placed this into your `$PATH` so that it can be called from anywhere.
 
 ## From source
 

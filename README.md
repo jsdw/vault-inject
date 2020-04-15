@@ -53,9 +53,9 @@ One use case for this is exporting secrets as environment variables within the c
 
 ```
 set_env_vars() {
-    eval $(vault-inject \
+    export $(vault-inject \
         --secret '{secret} = /secret/foo/bar/{secret}'
-        --each 'echo "export $secret_key=$secret_value"')
+        --each 'echo "$secret_key=$secret_value"')
 }
 ```
 
